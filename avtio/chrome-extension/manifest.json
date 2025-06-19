@@ -1,0 +1,29 @@
+{
+  "name": "Avito Pro",
+  "version": "1.0",
+  "description": "Фильтрует объявления на Avito по вашим правилам.",
+  "manifest_version": 3,
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Avito Filter"
+  },
+  "options_ui": {
+    "page": "advanced.html",
+    "open_in_tab": true
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.avito.ru/*"
+      ],
+      "js": [
+        "content-script.js"
+      ],
+      "run_at": "document_end"
+    }
+  ]
+} 

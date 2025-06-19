@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Avito Pro</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="page-header">
+    <h1 class="page-title">Avito Pro</h1>
+  </div>
+  <form id="mainForm">
+    <div class="card field">
+      <div class="field-text">
+        <span class="field-title">Метки оригинальности</span>
+        <p class="field-description">Отображать метки оригинальности объявлений.</p>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="showBadges" />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="card field">
+      <div class="field-text">
+        <span class="field-title">Скрывать паль</span>
+        <p class="field-description">Не показывать объявления, помеченные как сомнительные.</p>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="hideFake" />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <button type="button" id="openAdvancedBtn" class="link-btn">Расширенные настройки</button>
+  </form>
+
+  <p class="status" id="status"></p>
+  <script src="popup.js"></script>
+</body>
+</html> 

@@ -30,9 +30,22 @@ label {
 }
 
 input[type="number"],
-input[type="text"] {
-  padding: 4px 6px;
+input[type="text"],
+textarea {
+  padding: 10px;
   font-size: 14px;
+  font-weight: 400; /* нормальный вес */
+  border: 1px solid #d1d1d6;
+  border-radius: 12px;
+  outline: none;
+  min-height: 80px;
+  resize: vertical; /* позволяем растягивать при необходимости */
+}
+
+input[type="number"]:focus,
+input[type="text"]:focus,
+textarea:focus {
+  border-color: #FF3B30;
 }
 
 button {
@@ -161,6 +174,7 @@ dialog {
   align-items: center;
   gap: 8px;
   margin-bottom: 24px;
+
 }
 
 .page-title {
@@ -294,9 +308,12 @@ dialog {
   font-size: 13px;
   color: #FF3B30;;
   cursor: pointer;
+  width: auto;
+  padding: 0;
 }
 .reset-link:hover {
   text-decoration: underline;
+  background: none;
 }
 
 /* Без скругления у диалога «Расширенные настройки» */
@@ -305,10 +322,21 @@ dialog {
 }
 
 /* === Стрелка «Назад» === */
+#backBtn {
+  background: none;
+}
+#backBtn:hover {
+  background: none;
+}
 #backBtn .arrow-icon {
   fill: #6F6F6F;
   transition: fill 0.2s ease;
 }
 #backBtn:hover .arrow-icon {
   fill: #FF3B30;
+}
+
+/* Делаем фон кружка за стрелкой белым */
+#backBtn svg path:first-child {
+  fill: #ffffff;
 } 

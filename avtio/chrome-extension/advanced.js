@@ -43,6 +43,10 @@ document.addEventListener('DOMContentLoaded', () => {
     save();
   });
 
+  // Автосохранение при изменении полей
+  originalKeywordsInput.addEventListener('input', save);
+  fakeKeywordsInput.addEventListener('input', save);
+
   // Сбросы
   resetOriginalBtn.addEventListener('click', () => {
     originalKeywordsInput.value = DEFAULT_ORIGINAL;

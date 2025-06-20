@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <title>Avito Pro – Расширенные настройки</title>
+  <title>Расширенные настройки</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -14,6 +14,7 @@
       </svg>
     </button>
     <h1 class="page-title">Расширенные настройки</h1>
+    
   </div>
 
   <form id="advancedForm">
@@ -22,7 +23,7 @@
         <label for="originalKeywords">Ключевые слова оригинала</label>
         <button type="button" id="resetOriginal" class="reset-link">Сбросить</button>
       </div>
-      <input type="text" id="originalKeywords" placeholder="оригинал" />
+      <textarea id="originalKeywords" placeholder="оригинал" rows="3"></textarea>
     </div>
 
     <div class="field">
@@ -30,10 +31,8 @@
         <label for="fakeKeywords">Ключевые слова пали</label>
         <button type="button" id="resetFake" class="reset-link">Сбросить</button>
       </div>
-      <input type="text" id="fakeKeywords" placeholder="паль, копия, реплика" />
+      <textarea id="fakeKeywords" placeholder="паль, копия, реплика" rows="3"></textarea>
     </div>
-
-    <button type="submit">Сохранить</button>
   </form>
 
   <p class="status" id="status"></p>

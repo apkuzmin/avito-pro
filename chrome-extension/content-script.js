@@ -48,12 +48,38 @@ function getSellerId(item) {
 // Добавляем функцию для получения количества отзывов продавца из карточки
 function getReviewCount(item) {
   // Ищем любой элемент, содержащий слово «отзыв»
-  const reviewNode = Array.from(item.querySelectorAll('span, div'))
+  const reviewNode = Array.from(item.querySelectorAll('span, div, a, p'))
     .find((el) => /отзыв/i.test(el.textContent));
   if (!reviewNode) return null;
+  
+  const text = reviewNode.textContent;
+  console.log(`[Avito Pro] Найден узел с отзывами: "${text}"`);
+  
   // Извлекаем число перед словом «отзыв»/«отзыва»/«отзывов»
-  const m = reviewNode.textContent.replace(/\s+/g, ' ').match(/(\d+)\s*отзыв/i);
-  return m ? parseInt(m[1], 10) : null;
+  // Убираем все виды пробелов и неразрывные пробелы, затем ищем число
+  const cleanText = text.replace(/[\s\u00A0\u2009\u200A\u202F]/g, '');
+  let match = cleanText.match(/(\d+)отзыв/i);
+  
+  // Альтернативный паттерн: число • число отзывов
+  if (!match) {
+    match = text.match(/•\s*(\d+(?:\s+\d+)*)\s*отзыв/i);
+    if (match) {
+      // Убираем пробелы из числа (например "1 018" -> "1018")
+      const numberStr = match[1].replace(/\s+/g, '');
+      return parseInt(numberStr, 10);
+    }
+  }
+  
+  // Альтернативный паттерн: звёзды и число отзывов в одной строке
+  if (!match) {
+    match = text.match(/[\d,]+\s*•\s*(\d+(?:\s+\d+)*)\s*отзыв/i);
+    if (match) {
+      const numberStr = match[1].replace(/\s+/g, '');
+      return parseInt(numberStr, 10);
+    }
+  }
+  
+  return match ? parseInt(match[1], 10) : null;
 }
 
 // Добавляем кнопки управления к карточке
@@ -217,7 +243,14 @@ function filterListings(settings) {
     // Получаем id продавца и число отзывов
     let sellerId = getSellerId(item);
     const reviewCount = getReviewCount(item);
+    
+    // Отладочное логирование для диагностики проблем
+    if (reviewCount !== null) {
+      console.log(`[Avito Pro] Найден продавец с ${reviewCount} отзывами. Порог: ${settings.maxSellerReviews}, hideTopSellers: ${settings.hideTopSellers}`);
+    }
+    
     if (reviewCount !== null && reviewCount > settings.maxSellerReviews && settings.hideTopSellers) {
+      console.log(`[Avito Pro] Скрываем объявление от продавца с ${reviewCount} отзывами`);
       hide = true;
       // Кэшируем продавца в ЧС, чтобы в дальнейшем пропускать быстрее
       if (sellerId) {

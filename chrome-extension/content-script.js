@@ -1,6 +1,6 @@
 // === Глобальные константы и дефолты ===
 const DEFAULT_ORIGINAL = ['оригинал'];
-const DEFAULT_FAKE = ['паль', 'копия', 'реплика'];
+const DEFAULT_FAKE = ['реплика', 'паль', 'оригинальное качество', 'люкс', 'размеры', 'качественный', 'в наличии', 'качественная', 'качества', 'размерный'];
 const BLACKLIST_OFFER_KEY = 'blacklistOffers';
 const BLACKLIST_USER_KEY = 'blacklistUsers';
 const BTN_CONTAINER_CLASS = 'avito-blacklist-btn-container';
@@ -43,6 +43,17 @@ function getSellerId(item) {
   const m2 = href.match(/sellerId=(\d+)/);
   if (m2) return m2[1];
   return null;
+}
+
+// Добавляем функцию для получения количества отзывов продавца из карточки
+function getReviewCount(item) {
+  // Ищем любой элемент, содержащий слово «отзыв»
+  const reviewNode = Array.from(item.querySelectorAll('span, div'))
+    .find((el) => /отзыв/i.test(el.textContent));
+  if (!reviewNode) return null;
+  // Извлекаем число перед словом «отзыв»/«отзыва»/«отзывов»
+  const m = reviewNode.textContent.replace(/\s+/g, ' ').match(/(\d+)\s*отзыв/i);
+  return m ? parseInt(m[1], 10) : null;
 }
 
 // Добавляем кнопки управления к карточке
@@ -203,6 +214,17 @@ function filterListings(settings) {
   items.forEach((item) => {
     let hide = false;
 
+    // Получаем id продавца и число отзывов
+    let sellerId = getSellerId(item);
+    const reviewCount = getReviewCount(item);
+    if (reviewCount !== null && reviewCount > settings.maxSellerReviews && settings.hideTopSellers) {
+      hide = true;
+      // Кэшируем продавца в ЧС, чтобы в дальнейшем пропускать быстрее
+      if (sellerId) {
+        addToBlacklist(BLACKLIST_USER_KEY, sellerId);
+      }
+    }
+
     // Проверка цены
     const price = extractPrice(item);
     if (price !== null) {
@@ -217,8 +239,13 @@ function filterListings(settings) {
       item.querySelector('a[itemprop="name"]') ||
       item.querySelector('h2');
     const titleText = titleElement ? titleElement.textContent.toLowerCase() : '';
+
+    // NEW: учитываем мета-описание внутри карточки, которое Avito прячет в <meta itemprop="description" content="…">
+    const metaDescription = item.querySelector('meta[itemprop="description"]');
+    const metaDescText = metaDescription ? metaDescription.getAttribute('content').toLowerCase() : '';
+
     const cardText = item.textContent.toLowerCase();
-    const searchText = titleText + ' ' + cardText;
+    const searchText = titleText + ' ' + cardText + ' ' + metaDescText;
 
     // Ключевые слова для скрытия
     if (settings.keywords && settings.keywords.length) {
@@ -261,7 +288,6 @@ function filterListings(settings) {
 
     // Проверяем черные списки
     const offerId = item.getAttribute('data-item-id');
-    const sellerId = getSellerId(item);
     if (settings.blacklistOffers && offerId && settings.blacklistOffers.includes(offerId)) hide = true;
     if (settings.blacklistUsers && sellerId && settings.blacklistUsers.includes(sellerId)) hide = true;
 
@@ -334,7 +360,7 @@ function extractPrice(item) {
 // Инициализация скрипта
 function initFiltering() {
   function loadAndFilter() {
-    chrome.storage.sync.get(['minPrice', 'maxPrice', 'keywords', 'originalKeywords', 'fakeKeywords', 'showBadges', 'hideFake', BLACKLIST_OFFER_KEY, BLACKLIST_USER_KEY], (data) => {
+    chrome.storage.sync.get(['minPrice', 'maxPrice', 'keywords', 'originalKeywords', 'fakeKeywords', 'showBadges', 'hideFake', 'hideTopSellers', 'maxSellerReviews', BLACKLIST_OFFER_KEY, BLACKLIST_USER_KEY], (data) => {
       const settings = {
         minPrice: Number.isFinite(data.minPrice) ? data.minPrice : null,
         maxPrice: Number.isFinite(data.maxPrice) ? data.maxPrice : null,
@@ -343,8 +369,10 @@ function initFiltering() {
         fakeKeywords: data.fakeKeywords ? data.fakeKeywords.split(',').map((w) => w.trim()).filter(Boolean) : DEFAULT_FAKE,
         showBadges: data.showBadges === undefined ? true : data.showBadges,
         hideFake: data.hideFake === undefined ? true : data.hideFake,
+        hideTopSellers: data.hideTopSellers === undefined ? true : data.hideTopSellers,
         blacklistOffers: Array.isArray(data[BLACKLIST_OFFER_KEY]) ? data[BLACKLIST_OFFER_KEY] : [],
-        blacklistUsers: Array.isArray(data[BLACKLIST_USER_KEY]) ? data[BLACKLIST_USER_KEY] : []
+        blacklistUsers: Array.isArray(data[BLACKLIST_USER_KEY]) ? data[BLACKLIST_USER_KEY] : [],
+        maxSellerReviews: Number.isFinite(data.maxSellerReviews) ? data.maxSellerReviews : 100
       };
 
       filterListings(settings);
@@ -356,7 +384,11 @@ function initFiltering() {
 
   // Обновляем при изменении DOM
   const observer = new MutationObserver(loadAndFilter);
-  observer.observe(document.body, { childList: true, subtree: true });
+  // Отслеживаем не только добавление/удаление узлов, но и изменение текста внутри них.
+  // На Avito описание и часть атрибутов подгружаются асинхронно: сначала вставляется «скелет»,
+  // а затем меняется содержимое текстовых узлов. Чтобы метки обновлялись после таких
+  // «ленивых» изменений, подписываемся ещё и на characterData.
+  observer.observe(document.body, { childList: true, subtree: true, characterData: true });
 
   // Обновляем при изменении настроек
   chrome.storage.onChanged.addListener(loadAndFilter);

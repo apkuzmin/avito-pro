@@ -4,12 +4,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const resetOriginalBtn = document.getElementById('resetOriginal');
   const resetFakeBtn = document.getElementById('resetFake');
   const backBtn = document.getElementById('backBtn');
+  const maxSellerReviewsInput = document.getElementById('maxSellerReviews');
 
   const DEFAULT_ORIGINAL = 'Оригинал';
-  const DEFAULT_FAKE = 'реплика, паль, оригинальное качество, люкс, бренд, размеры, качественный, в наличии';
+  const DEFAULT_FAKE = 'реплика, паль, оригинальное качество, люкс, размеры, качественный, в наличии, качественная, качества, размерный';
 
   // Загрузка сохранённых настроек
-  chrome.storage.sync.get(['originalKeywords', 'fakeKeywords'], (data) => {
+  chrome.storage.sync.get(['originalKeywords', 'fakeKeywords', 'maxSellerReviews'], (data) => {
     if (data.originalKeywords === undefined) {
       data.originalKeywords = DEFAULT_ORIGINAL;
       chrome.storage.sync.set({ originalKeywords: DEFAULT_ORIGINAL });
@@ -21,13 +22,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     originalKeywordsInput.value = data.originalKeywords;
     fakeKeywordsInput.value = data.fakeKeywords;
+
+    // Значение по умолчанию для порога отзывов
+    const DEFAULT_MAX_REVIEWS = 100;
+    if (data.maxSellerReviews === undefined || !Number.isFinite(data.maxSellerReviews)) {
+      data.maxSellerReviews = DEFAULT_MAX_REVIEWS;
+      chrome.storage.sync.set({ maxSellerReviews: DEFAULT_MAX_REVIEWS });
+    }
+    maxSellerReviewsInput.value = data.maxSellerReviews;
   });
 
   // Функция сохранения
   function save() {
     const settings = {
       originalKeywords: originalKeywordsInput.value.trim(),
-      fakeKeywords: fakeKeywordsInput.value.trim()
+      fakeKeywords: fakeKeywordsInput.value.trim(),
+      maxSellerReviews: parseInt(maxSellerReviewsInput.value, 10) || 100
     };
     chrome.storage.sync.set(settings);
   }
@@ -37,6 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Автосохранение при изменении полей
   originalKeywordsInput.addEventListener('input', save);
   fakeKeywordsInput.addEventListener('input', save);
+  maxSellerReviewsInput.addEventListener('input', save);
 
   // Сбросы
   resetOriginalBtn.addEventListener('click', () => {

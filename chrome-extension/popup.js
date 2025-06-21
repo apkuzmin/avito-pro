@@ -8,29 +8,56 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Функция для сохранения настроек
   const saveSettings = () => {
-    chrome.storage.sync.set({
+    const settings = {
       showBadges: showBadgesInput.checked,
       hideFake: hideFakeInput.checked,
       hideTopSellers: hideTopSellersInput.checked,
+    };
+    
+    chrome.storage.sync.set(settings, () => {
+      if (chrome.runtime.lastError) {
+        console.error('Ошибка сохранения настроек:', chrome.runtime.lastError);
+      } else {
+        console.log('Настройки сохранены:', settings);
+      }
     });
+  };
+
+  // Функция для преобразования значения из хранилища в boolean
+  const toBool = (value, defaultVal) => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') return value === 'true';
+    return defaultVal;
   };
 
   // Загрузка сохранённых настроек
   chrome.storage.sync.get(['showBadges', 'hideFake', 'hideTopSellers'], (data) => {
-    showBadgesInput.checked = typeof data.showBadges === 'boolean' ? data.showBadges : true;
-    hideFakeInput.checked = typeof data.hideFake === 'boolean' ? data.hideFake : true;
-    hideTopSellersInput.checked = typeof data.hideTopSellers === 'boolean' ? data.hideTopSellers : true;
+    if (chrome.runtime.lastError) {
+      console.error('Ошибка загрузки настроек:', chrome.runtime.lastError);
+      // Используем значения по умолчанию
+      showBadgesInput.checked = true;
+      hideFakeInput.checked = true;
+      hideTopSellersInput.checked = true;
+    } else {
+      console.log('Загруженные настройки:', data);
+      
+      // Устанавливаем значения из хранилища или дефолтные
+      showBadgesInput.checked = toBool(data.showBadges, true);
+      hideFakeInput.checked = toBool(data.hideFake, true);
+      hideTopSellersInput.checked = toBool(data.hideTopSellers, true);
 
-    // Устанавливаем начальные значения, если их нет
-    if (typeof data.showBadges !== 'boolean' || typeof data.hideFake !== 'boolean' || typeof data.hideTopSellers !== 'boolean') {
-      saveSettings();
+      // Если это первый запуск или значения были некорректными, сохраняем дефолтные
+      if (data.showBadges === undefined || data.hideFake === undefined || data.hideTopSellers === undefined) {
+        console.log('Первое сохранение настроек с дефолтными значениями');
+        saveSettings();
+      }
     }
+    
+    // Добавляем обработчики событий после загрузки настроек
+    showBadgesInput.addEventListener('change', saveSettings);
+    hideFakeInput.addEventListener('change', saveSettings);
+    hideTopSellersInput.addEventListener('change', saveSettings);
   });
-
-  // Сохранение при изменении любого переключателя
-  showBadgesInput.addEventListener('change', saveSettings);
-  hideFakeInput.addEventListener('change', saveSettings);
-  hideTopSellersInput.addEventListener('change', saveSettings);
 
   // Открыть страницу расширенных настроек
   openAdvancedBtn.addEventListener('click', () => {

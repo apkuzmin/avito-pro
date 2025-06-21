@@ -361,15 +361,21 @@ function extractPrice(item) {
 function initFiltering() {
   function loadAndFilter() {
     chrome.storage.sync.get(['minPrice', 'maxPrice', 'keywords', 'originalKeywords', 'fakeKeywords', 'showBadges', 'hideFake', 'hideTopSellers', 'maxSellerReviews', BLACKLIST_OFFER_KEY, BLACKLIST_USER_KEY], (data) => {
+      const toBool = (v, def) => {
+        if (typeof v === 'boolean') return v;
+        if (typeof v === 'string') return v === 'true';
+        return def;
+      };
+
       const settings = {
         minPrice: Number.isFinite(data.minPrice) ? data.minPrice : null,
         maxPrice: Number.isFinite(data.maxPrice) ? data.maxPrice : null,
         keywords: data.keywords ? data.keywords.split(',').map((w) => w.trim()).filter(Boolean) : [],
         originalKeywords: data.originalKeywords ? data.originalKeywords.split(',').map((w) => w.trim()).filter(Boolean) : DEFAULT_ORIGINAL,
         fakeKeywords: data.fakeKeywords ? data.fakeKeywords.split(',').map((w) => w.trim()).filter(Boolean) : DEFAULT_FAKE,
-        showBadges: data.showBadges === undefined ? true : data.showBadges,
-        hideFake: data.hideFake === undefined ? true : data.hideFake,
-        hideTopSellers: data.hideTopSellers === undefined ? true : data.hideTopSellers,
+        showBadges: data.showBadges === undefined ? true : toBool(data.showBadges, true),
+        hideFake: data.hideFake === undefined ? true : toBool(data.hideFake, true),
+        hideTopSellers: data.hideTopSellers === undefined ? true : toBool(data.hideTopSellers, true),
         blacklistOffers: Array.isArray(data[BLACKLIST_OFFER_KEY]) ? data[BLACKLIST_OFFER_KEY] : [],
         blacklistUsers: Array.isArray(data[BLACKLIST_USER_KEY]) ? data[BLACKLIST_USER_KEY] : [],
         maxSellerReviews: Number.isFinite(data.maxSellerReviews) ? data.maxSellerReviews : 100

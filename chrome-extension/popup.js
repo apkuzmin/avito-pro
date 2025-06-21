@@ -2,36 +2,31 @@ document.addEventListener('DOMContentLoaded', () => {
   // Элементы основного окна
   const showBadgesInput = document.getElementById('showBadges');
   const hideFakeInput = document.getElementById('hideFake');
-  const mainForm = document.getElementById('mainForm');
   const openAdvancedBtn = document.getElementById('openAdvancedBtn');
   const status = document.getElementById('status');
 
+  // Функция для сохранения настроек
+  const saveSettings = () => {
+    chrome.storage.sync.set({
+      showBadges: showBadgesInput.checked,
+      hideFake: hideFakeInput.checked,
+    });
+  };
+
   // Загрузка сохранённых настроек
   chrome.storage.sync.get(['showBadges', 'hideFake'], (data) => {
-    if (typeof data.showBadges !== 'boolean') {
-      data.showBadges = true;
-      chrome.storage.sync.set({ showBadges: true });
-    }
-    showBadgesInput.checked = data.showBadges;
+    showBadgesInput.checked = typeof data.showBadges === 'boolean' ? data.showBadges : true;
+    hideFakeInput.checked = typeof data.hideFake === 'boolean' ? data.hideFake : true;
 
-    if (typeof data.hideFake !== 'boolean') {
-      data.hideFake = false;
-      chrome.storage.sync.set({ hideFake: false });
+    // Устанавливаем начальные значения, если их нет
+    if (typeof data.showBadges !== 'boolean' || typeof data.hideFake !== 'boolean') {
+      saveSettings();
     }
-    hideFakeInput.checked = data.hideFake;
   });
 
-  // Сохранение основных настроек
-  mainForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    chrome.storage.sync.set(
-      { showBadges: showBadgesInput.checked, hideFake: hideFakeInput.checked },
-      () => {
-        status.textContent = 'Настройки сохранены!';
-        setTimeout(() => (status.textContent = ''), 1500);
-      }
-    );
-  });
+  // Сохранение при изменении любого переключателя
+  showBadgesInput.addEventListener('change', saveSettings);
+  hideFakeInput.addEventListener('change', saveSettings);
 
   // Открыть страницу расширенных настроек
   openAdvancedBtn.addEventListener('click', () => {

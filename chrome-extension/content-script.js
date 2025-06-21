@@ -1,15 +1,203 @@
+// === Глобальные константы и дефолты ===
+const DEFAULT_ORIGINAL = ['оригинал'];
+const DEFAULT_FAKE = ['паль', 'копия', 'реплика'];
+const BLACKLIST_OFFER_KEY = 'blacklistOffers';
+const BLACKLIST_USER_KEY = 'blacklistUsers';
+const BTN_CONTAINER_CLASS = 'avito-blacklist-btn-container';
+
+// Инжектируем стили для кнопок один раз
+(function injectBlacklistStyles() {
+  if (document.getElementById('avito-bl-styles')) return;
+  const style = document.createElement('style');
+  style.id = 'avito-bl-styles';
+  style.textContent = `
+    .${BTN_CONTAINER_CLASS} {display:none;position:absolute;right:4px;top:4px;z-index:9999;gap:4px;}
+    div[data-marker="item"]:hover .${BTN_CONTAINER_CLASS} {display:flex;}
+    .avito-bl-btn{width:24px;height:24px;background:#000000c0;border:none;border-radius:4px;color:#fff;font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+    .avito-bl-btn:hover{background:#ff5252;}
+  `;
+  document.head.appendChild(style);
+})();
+
+// Утилиты работы с списками ЧС
+function updateStorageList(key, updater) {
+  chrome.storage.sync.get([key], (data) => {
+    const list = Array.isArray(data[key]) ? data[key] : [];
+    const updated = updater(list);
+    chrome.storage.sync.set({ [key]: updated });
+  });
+}
+
+function addToBlacklist(key, id) {
+  updateStorageList(key, (list) => (list.includes(id) ? list : [...list, id]));
+}
+
+// Получить id продавца (приближённо)
+function getSellerId(item) {
+  // Пытаемся найти ссылку на продавца внутри карточки
+  const link = item.querySelector('a[href*="/user/"]') || item.querySelector('a[href*="sellerId="]');
+  if (!link) return null;
+  const href = link.href;
+  const m1 = href.match(/\/user\/([\w-]+)/);
+  if (m1) return m1[1];
+  const m2 = href.match(/sellerId=(\d+)/);
+  if (m2) return m2[1];
+  return null;
+}
+
+// Добавляем кнопки управления к карточке
+function addBlacklistButtons(item, offerId, sellerId) {
+  if (!offerId && !sellerId) return;
+  if (item.querySelector(`.${BTN_CONTAINER_CLASS}`)) return; // уже есть
+
+  const container = document.createElement('div');
+  container.className = BTN_CONTAINER_CLASS;
+
+  if (offerId) {
+    const offerBtn = document.createElement('button');
+    offerBtn.className = 'avito-bl-btn';
+    offerBtn.title = 'Скрыть это объявление';
+    offerBtn.textContent = '×';
+    offerBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      addToBlacklist(BLACKLIST_OFFER_KEY, offerId);
+      item.style.display = 'none';
+    });
+    container.appendChild(offerBtn);
+  }
+
+  if (sellerId) {
+    const sellerBtn = document.createElement('button');
+    sellerBtn.className = 'avito-bl-btn';
+    sellerBtn.title = 'Скрыть все объявления продавца';
+    sellerBtn.textContent = '🚫';
+    sellerBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      addToBlacklist(BLACKLIST_USER_KEY, sellerId);
+      item.style.display = 'none';
+    });
+    container.appendChild(sellerBtn);
+  }
+
+  item.style.position = 'relative';
+  item.appendChild(container);
+}
+
+// Добавляем утилиту для проверки "целых" слов, учитывая Unicode буквы/цифры
+function containsWholeWord(text, word) {
+  if (!word) return false;
+  // Экранируем спец-символы RegExp
+  const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Границей слова считаем любой символ, который НЕ является буквой или цифрой (любой раскладки)
+  const pattern = new RegExp(`(^|[^\\p{L}\\p{N}])${escaped.toLowerCase()}([^\\p{L}\\p{N}]|$)`, 'iu');
+  return pattern.test(text);
+}
+
 // Функция фильтрации объявлений на Avito
 function filterListings(settings) {
   const itemSelector = 'div[data-marker="item"]';
   const priceSelector = '[data-marker="item-price"]';
   const titleSelector = 'h3';
   const badgeClass = 'avito-filter-badge';
-  const DEFAULT_ORIGINAL = ['оригинал'];
-  const DEFAULT_FAKE = ['паль', 'копия', 'реплика'];
   // Базовые стили бейджа, напоминающие фирменные Avito-плашки (как «Молл»)
   const BADGE_STYLE =
     'display:inline-flex;align-items:center;white-space:nowrap;font-size:12px;font-weight:600;' +
     'padding:2px 6px;border-radius:4px;color:#fff;pointer-events:none;';
+
+  // ===== Вспомогательная функция для размещения бейджа =====
+  // Делает попытку найти подходящую строку после цены, а если её нет — создаёт собственную.
+  function placeBadge(cardNode, badgeEl) {
+    // Если бейдж уже в нужном контейнере — ничего не делаем
+    if (badgeEl.parentElement && badgeEl.parentElement.classList.contains('avito-filter-badge-wrapper')) {
+      return;
+    }
+
+    // Удаляем из старого места (если был)
+    if (badgeEl.parentElement) {
+      badgeEl.parentElement.removeChild(badgeEl);
+    }
+
+    // 1) Пытаемся найти ранее созданный нами ряд
+    let badgeRow = cardNode.querySelector('.avito-custom-badge-row');
+
+    // 2) Если его нет, ищем «родной» ряд Avito, который идёт СРАЗУ после блока цены
+    if (!badgeRow) {
+      // Находим блок цены
+      const priceEl =
+        cardNode.querySelector('[data-marker="item-price"]') ||
+        cardNode.querySelector('[itemprop="price"]');
+
+      // Определяем контейнер цены, относительно которого будем искать следующий ряд
+      let priceContainer = priceEl ? priceEl.parentElement : null;
+
+      // Поднимаемся максимум на 3 уровня, чтобы выйти на контейнер-родитель для блока цены
+      let level = 0;
+      while (priceContainer && priceContainer.parentElement !== cardNode && level < 3) {
+        priceContainer = priceContainer.parentElement;
+        level++;
+      }
+
+      if (priceContainer) {
+        // Сначала ищем ближайший следующий элемент после контейнера цены,
+        // который выглядит как стандартная строка Avito для плашек/лейблов
+        let sibling = priceContainer.nextElementSibling;
+        while (sibling) {
+          if (sibling.classList && sibling.classList.contains('SnippetLayout-root')) {
+            badgeRow = sibling;
+            break;
+          }
+          sibling = sibling.nextElementSibling;
+        }
+
+        // Если по прямым соседям ничего не нашли, пробуем найти ЛЮБУЮ
+        // подходящую строку внутри карточки, игнорируя наши собственные.
+        if (!badgeRow) {
+          badgeRow = Array.from(cardNode.querySelectorAll('.SnippetLayout-root')).find(
+            (el) => !el.classList.contains('avito-custom-badge-row')
+          );
+        }
+      }
+    }
+
+    // 3) Если подходящий ряд так и не найден — создаём собственный сразу после блока цены (или в начало карточки, если не удалось его определить)
+    if (!badgeRow) {
+      // Повторно находим блок цены и его контейнер, чтобы понять, куда вставлять ряд
+      const priceEl =
+        cardNode.querySelector('[data-marker="item-price"]') ||
+        cardNode.querySelector('[itemprop="price"]');
+      let priceContainer = priceEl ? priceEl.parentElement : null;
+      let level = 0;
+      while (priceContainer && priceContainer.parentElement !== cardNode && level < 3) {
+        priceContainer = priceContainer.parentElement;
+        level++;
+      }
+
+      badgeRow = document.createElement('div');
+      badgeRow.className = 'SnippetLayout-root avito-custom-badge-row';
+      badgeRow.style.display = 'flex';
+      badgeRow.style.flexWrap = 'wrap';
+      badgeRow.style.gap = '4px';
+      badgeRow.style.marginTop = '4px';
+
+      if (priceContainer) {
+        priceContainer.insertAdjacentElement('afterend', badgeRow);
+      } else {
+        // Fallback: вставляем в начало карточки
+        cardNode.prepend(badgeRow);
+      }
+    }
+
+    // Ищем/создаём враппер для наших бейджей
+    let wrapper = cardNode.querySelector('.avito-filter-badge-wrapper');
+    if (!wrapper) {
+      wrapper = document.createElement('div');
+      wrapper.className = 'avito-filter-badge-wrapper SnippetLayout-item-custom';
+      wrapper.style.marginRight = '4px';
+      badgeRow.prepend(wrapper);
+    }
+
+    wrapper.appendChild(badgeEl);
+  }
 
   const items = document.querySelectorAll(itemSelector);
   items.forEach((item) => {
@@ -34,11 +222,12 @@ function filterListings(settings) {
 
     // Ключевые слова для скрытия
     if (settings.keywords && settings.keywords.length) {
-      settings.keywords.forEach((word) => {
-        if (word && searchText.includes(word.toLowerCase())) {
+      for (const word of settings.keywords) {
+        if (containsWholeWord(searchText, word)) {
           hide = true;
+          break;
         }
-      });
+      }
     }
 
     // Сначала определяем, встретилось ли хоть одно слово из каждого списка
@@ -47,7 +236,7 @@ function filterListings(settings) {
 
     if (settings.originalKeywords && settings.originalKeywords.length) {
       settings.originalKeywords.forEach((word) => {
-        if (word && searchText.includes(word.toLowerCase())) {
+        if (containsWholeWord(searchText, word)) {
           hasOriginal = true;
         }
       });
@@ -55,7 +244,7 @@ function filterListings(settings) {
 
     if (settings.fakeKeywords && settings.fakeKeywords.length) {
       settings.fakeKeywords.forEach((word) => {
-        if (word && searchText.includes(word.toLowerCase())) {
+        if (containsWholeWord(searchText, word)) {
           hasFake = true;
         }
       });
@@ -68,6 +257,17 @@ function filterListings(settings) {
       badgeText = 'Паль';
     } else if (hasOriginal) {
       badgeText = 'Оригинал';
+    }
+
+    // Проверяем черные списки
+    const offerId = item.getAttribute('data-item-id');
+    const sellerId = getSellerId(item);
+    if (settings.blacklistOffers && offerId && settings.blacklistOffers.includes(offerId)) hide = true;
+    if (settings.blacklistUsers && sellerId && settings.blacklistUsers.includes(sellerId)) hide = true;
+
+    // Добавляем интерфейс управления черным списком (только если объявление ещё не скрыто)
+    if (!hide) {
+      addBlacklistButtons(item, offerId, sellerId);
     }
 
     // === Новая логика: управление отображением бейджей ===
@@ -91,45 +291,8 @@ function filterListings(settings) {
         badgeEl.textContent = badgeText;
         badgeEl.style.cssText = BADGE_STYLE + `background:${bgColor};`;
 
-        // Если Avito не вывел блок бейджей, создаём собственный сразу под ценой
-        let inserted = false;
-        let snippetLayout = item.querySelector('[class^="SnippetLayout-root"]');
-        if (!snippetLayout) {
-          const priceStep = item.querySelector('[class*="priceStep"]');
-          const containerForInsert = priceStep ? priceStep.parentElement : null;
-          if (containerForInsert) {
-            snippetLayout = document.createElement('div');
-            snippetLayout.className = 'SnippetLayout-root avito-custom-badge-row';
-            snippetLayout.style.display = 'flex';
-            snippetLayout.style.flexWrap = 'wrap';
-            snippetLayout.style.gap = '4px';
-            snippetLayout.style.marginTop = '4px';
-            containerForInsert.insertBefore(snippetLayout, priceStep.nextSibling);
-          }
-        }
-
-        if (snippetLayout) {
-          // Проверяем, добавляли ли мы уже враппер
-          let wrapper = item.querySelector('.avito-filter-badge-wrapper');
-          if (!wrapper) {
-            wrapper = document.createElement('div');
-            wrapper.className = 'avito-filter-badge-wrapper SnippetLayout-item-custom';
-            wrapper.style.marginRight = '4px';
-            snippetLayout.prepend(wrapper); // в начало списка бейджей
-          }
-          // Перемещаем бейдж внутрь контейнера (если он уже где-то был — например, в абсолютном положении)
-          if (badgeEl.parentElement !== wrapper) {
-            wrapper.appendChild(badgeEl);
-          }
-          inserted = true;
-        }
-
-        // Fallback – абсолютное позиционирование поверх карточки
-        if (!inserted && !badgeEl.parentElement) {
-          badgeEl.style.cssText += 'position:absolute;top:8px;right:8px;pointer-events:none;z-index:9999;';
-          item.style.position = 'relative';
-          item.appendChild(badgeEl);
-        }
+        // Добавляем бейдж в нужное место
+        placeBadge(item, badgeEl);
       } else {
         // Если ранее был бейдж, но теперь не нужно — удаляем
         const existing = item.querySelectorAll(`.${badgeClass}`);
@@ -171,7 +334,7 @@ function extractPrice(item) {
 // Инициализация скрипта
 function initFiltering() {
   function loadAndFilter() {
-    chrome.storage.sync.get(['minPrice', 'maxPrice', 'keywords', 'originalKeywords', 'fakeKeywords', 'showBadges', 'hideFake'], (data) => {
+    chrome.storage.sync.get(['minPrice', 'maxPrice', 'keywords', 'originalKeywords', 'fakeKeywords', 'showBadges', 'hideFake', BLACKLIST_OFFER_KEY, BLACKLIST_USER_KEY], (data) => {
       const settings = {
         minPrice: Number.isFinite(data.minPrice) ? data.minPrice : null,
         maxPrice: Number.isFinite(data.maxPrice) ? data.maxPrice : null,
@@ -179,7 +342,9 @@ function initFiltering() {
         originalKeywords: data.originalKeywords ? data.originalKeywords.split(',').map((w) => w.trim()).filter(Boolean) : DEFAULT_ORIGINAL,
         fakeKeywords: data.fakeKeywords ? data.fakeKeywords.split(',').map((w) => w.trim()).filter(Boolean) : DEFAULT_FAKE,
         showBadges: data.showBadges === undefined ? true : data.showBadges,
-        hideFake: data.hideFake === undefined ? false : data.hideFake
+        hideFake: data.hideFake === undefined ? false : data.hideFake,
+        blacklistOffers: Array.isArray(data[BLACKLIST_OFFER_KEY]) ? data[BLACKLIST_OFFER_KEY] : [],
+        blacklistUsers: Array.isArray(data[BLACKLIST_USER_KEY]) ? data[BLACKLIST_USER_KEY] : []
       };
 
       filterListings(settings);

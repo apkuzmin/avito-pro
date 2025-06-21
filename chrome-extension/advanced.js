@@ -3,12 +3,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const fakeKeywordsInput = document.getElementById('fakeKeywords');
   const resetOriginalBtn = document.getElementById('resetOriginal');
   const resetFakeBtn = document.getElementById('resetFake');
-  const advancedForm = document.getElementById('advancedForm');
-  const status = document.getElementById('status');
   const backBtn = document.getElementById('backBtn');
 
-  const DEFAULT_ORIGINAL = 'оригинал';
-  const DEFAULT_FAKE = 'паль, копия, реплика';
+  const DEFAULT_ORIGINAL = 'Оригинал';
+  const DEFAULT_FAKE = 'паль, копия, реплика, качество, подделка, в наличии, размеры, ткань, оригинальное качество';
 
   // Загрузка сохранённых настроек
   chrome.storage.sync.get(['originalKeywords', 'fakeKeywords'], (data) => {
@@ -31,17 +29,10 @@ document.addEventListener('DOMContentLoaded', () => {
       originalKeywords: originalKeywordsInput.value.trim(),
       fakeKeywords: fakeKeywordsInput.value.trim()
     };
-    chrome.storage.sync.set(settings, () => {
-      status.textContent = 'Настройки сохранены!';
-      setTimeout(() => (status.textContent = ''), 1500);
-    });
+    chrome.storage.sync.set(settings);
   }
 
-  // Отправка формы
-  advancedForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    save();
-  });
+  // Форма больше не используется, поэтому сохраняем при вводе
 
   // Автосохранение при изменении полей
   originalKeywordsInput.addEventListener('input', save);

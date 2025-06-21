@@ -342,7 +342,7 @@ function initFiltering() {
         originalKeywords: data.originalKeywords ? data.originalKeywords.split(',').map((w) => w.trim()).filter(Boolean) : DEFAULT_ORIGINAL,
         fakeKeywords: data.fakeKeywords ? data.fakeKeywords.split(',').map((w) => w.trim()).filter(Boolean) : DEFAULT_FAKE,
         showBadges: data.showBadges === undefined ? true : data.showBadges,
-        hideFake: data.hideFake === undefined ? false : data.hideFake,
+        hideFake: data.hideFake === undefined ? true : data.hideFake,
         blacklistOffers: Array.isArray(data[BLACKLIST_OFFER_KEY]) ? data[BLACKLIST_OFFER_KEY] : [],
         blacklistUsers: Array.isArray(data[BLACKLIST_USER_KEY]) ? data[BLACKLIST_USER_KEY] : []
       };

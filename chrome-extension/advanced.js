@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const backBtn = document.getElementById('backBtn');
 
   const DEFAULT_ORIGINAL = 'Оригинал';
-  const DEFAULT_FAKE = 'паль, копия, реплика, качество, подделка, в наличии, размеры, ткань, оригинальное качество';
+  const DEFAULT_FAKE = 'реплика, паль, оригинальное качество, люкс, бренд, размеры, качественный, в наличии';
 
   // Загрузка сохранённых настроек
   chrome.storage.sync.get(['originalKeywords', 'fakeKeywords'], (data) => {
